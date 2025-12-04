@@ -130,18 +130,28 @@ st.header("🔋 Seleção do Modelo Dyness")
 modelo = st.selectbox("Modelo", list(baterias.keys()))
 bat = baterias[modelo]
 
-# ---------- Cálculo energético ----------
+# ---------- Cálculo energético e número mínimo de módulos ----------
 energia_necessaria = carga_kw * autonomia_h
 if motores_trifasicos:
     energia_necessaria *= 1.2
+
+cap_util_modulo = bat["capacidade_nominal"] * bat["dod"]
+
+# Número mínimo de módulos pela energia
+modulos_energia = math.ceil(energia_necessaria / cap_util_modulo) if energia_necessaria > 0 else 0
+
+if modelo == "Stack100":
+    # Número mínimo de módulos pela tensão mínima do inversor
+    modulos_tensao = math.ceil(tensao_min_inv / bat["tensao_modulo"])
+    # Número final de módulos é o maior entre energia e tensão mínima
+    modulos_totais = max(modulos_energia, modulos_tensao)
+else:
+    modulos_totais = modulos_energia
 
 st.markdown(
     f"<div class='result-card'>🔹 <b>Energia total necessária:</b> {energia_necessaria:.2f} kWh</div>",
     unsafe_allow_html=True,
 )
-
-cap_util_modulo = bat["capacidade_nominal"] * bat["dod"]
-modulos_totais = math.ceil(energia_necessaria / cap_util_modulo) if energia_necessaria > 0 else 0
 
 st.markdown(
     f"""
@@ -169,9 +179,10 @@ if modelo == "Stack100":
     else:
         st.success("✔ Strings dentro do limite.")
 
-    # Faixa de tensão total do banco
-    tensao_total_min = bat["tensao_min_string"] * 1  # mínimo 1 módulo em série (ajustado abaixo)
+    tensao_total_min = bat["tensao_modulo"] * modulos_totais
     tensao_total_max = bat["tensao_max_string"]
+
+    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min:.1f} – {tensao_total_max} V**")
 
 else:
     st.subheader("📦 Configuração LV — Paralelo")
@@ -184,30 +195,7 @@ else:
     tensao_total_min = bat["tensao_min"]
     tensao_total_max = bat["tensao_max"]
 
-# ---------- Ajuste de tensão com número real de módulos ----------
-if modelo == "Stack100":
-    # Considera módulos em série para HV
-    modulos_em_serie = modulos_totais  # simples aproximação: todos em série (pode ajustar conforme topologia)
-    tensao_real_min = modulos_em_serie * bat["tensao_modulo"] * 0.9  # aplicando DoD nominal
-    tensao_real_max = modulos_em_serie * bat["tensao_modulo"]  # máximo
-
-else:
-    tensao_real_min = tensao_total_min
-    tensao_real_max = tensao_total_max
-
-st.write(f"🔹 Faixa de tensão real do banco: **{tensao_real_min:.1f} – {tensao_real_max:.1f} V**")
-st.write(f"🔹 Faixa de tensão do inversor: **{tensao_min_inv:.1f} – {tensao_max_inv:.1f} V**")
-
-# ---------- Validação de tensão do inversor ----------
-if tensao_real_min < tensao_min_inv:
-    st.error("❌ Tensão mínima do banco NÃO atende a tensão mínima do inversor!")
-else:
-    st.success("✔ Tensão mínima do banco dentro do limite do inversor.")
-
-if tensao_real_max > tensao_max_inv:
-    st.error("❌ Tensão máxima do banco EXCEDE a tensão máxima do inversor!")
-else:
-    st.success("✔ Tensão máxima do banco dentro do limite do inversor.")
+    st.write(f"🔹 Faixa de tensão do módulo: **{tensao_total_min} – {tensao_total_max} V**")
 
 # ---------- Correntes ----------
 st.header("⚡ Validação de Corrente")
@@ -246,7 +234,7 @@ else:
 st.header("🔌 Validação de Potência Máxima (teórica)")
 
 if modelo == "Stack100":
-    tensao_nominal = (bat["tensao_min_string"] + bat["tensao_max_string"]) / 2
+    tensao_nominal = (tensao_total_min + tensao_total_max) / 2
 else:
     tensao_nominal = bat.get("tensao_modulo", 51.2)
 
@@ -279,7 +267,7 @@ st.markdown(
 st.sidebar.header("ℹ️ Sobre a Calculadora")
 st.sidebar.markdown(
     """
-    **Dyness BESS Calculator – Versão 1.1**
+    **Dyness BESS Calculator – Versão 1.0**
 
     Desenvolvido para:
     - Engenharia  
