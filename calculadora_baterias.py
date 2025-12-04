@@ -180,9 +180,17 @@ if modelo == "Stack100":
         st.success("✔ Strings dentro do limite.")
 
     tensao_total_min = bat["tensao_modulo"] * modulos_totais
-    tensao_total_max = bat["tensao_max_string"]
+    tensao_total_max = bat["tensao_modulo"] * modulos_totais  # correção: tensão do banco = módulos x módulo
 
-    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min:.1f} – {tensao_total_max} V**")
+    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min:.1f} – {tensao_total_max:.1f} V**")
+
+    # ---------- NOVA VALIDAÇÃO DA TENSÃO MÁXIMA DO INVERSOR ----------
+    if tensao_total_max > tensao_max_inv:
+        st.error(f"❌ Tensão do banco ({tensao_total_max:.1f} V) ULTRAPASSA a tensão máxima do inversor ({tensao_max_inv:.1f} V).")
+    elif tensao_total_min < tensao_min_inv:
+        st.error(f"❌ Tensão do banco ({tensao_total_min:.1f} V) NÃO ATINGE a tensão mínima do inversor ({tensao_min_inv:.1f} V).")
+    else:
+        st.success("✔ Tensão do banco dentro dos limites do inversor.")
 
 else:
     st.subheader("📦 Configuração LV — Paralelo")
