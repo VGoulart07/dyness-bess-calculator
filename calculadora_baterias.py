@@ -283,7 +283,7 @@ st.sidebar.markdown(
 )
 
 st.sidebar.header("📄 Datasheets Dyness")
-PASTA_DATASHEETS = "Datasheets"
+PASTA_DATASHEETS = "datasheets"
 
 datasheets = {
     "DL5.0C": "DL5.0C Datasheet-PT-BR(LATAM)-20250708.pdf",
