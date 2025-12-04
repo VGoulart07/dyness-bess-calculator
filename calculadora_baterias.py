@@ -169,10 +169,9 @@ if modelo == "Stack100":
     else:
         st.success("✔ Strings dentro do limite.")
 
-    tensao_total_min = bat["tensao_min_string"]
+    # Faixa de tensão total do banco
+    tensao_total_min = bat["tensao_min_string"] * 1  # mínimo 1 módulo em série (ajustado abaixo)
     tensao_total_max = bat["tensao_max_string"]
-
-    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min} – {tensao_total_max} V**")
 
 else:
     st.subheader("📦 Configuração LV — Paralelo")
@@ -185,7 +184,30 @@ else:
     tensao_total_min = bat["tensao_min"]
     tensao_total_max = bat["tensao_max"]
 
-    st.write(f"🔹 Faixa de tensão do módulo: **{tensao_total_min} – {tensao_total_max} V**")
+# ---------- Ajuste de tensão com número real de módulos ----------
+if modelo == "Stack100":
+    # Considera módulos em série para HV
+    modulos_em_serie = modulos_totais  # simples aproximação: todos em série (pode ajustar conforme topologia)
+    tensao_real_min = modulos_em_serie * bat["tensao_modulo"] * 0.9  # aplicando DoD nominal
+    tensao_real_max = modulos_em_serie * bat["tensao_modulo"]  # máximo
+
+else:
+    tensao_real_min = tensao_total_min
+    tensao_real_max = tensao_total_max
+
+st.write(f"🔹 Faixa de tensão real do banco: **{tensao_real_min:.1f} – {tensao_real_max:.1f} V**")
+st.write(f"🔹 Faixa de tensão do inversor: **{tensao_min_inv:.1f} – {tensao_max_inv:.1f} V**")
+
+# ---------- Validação de tensão do inversor ----------
+if tensao_real_min < tensao_min_inv:
+    st.error("❌ Tensão mínima do banco NÃO atende a tensão mínima do inversor!")
+else:
+    st.success("✔ Tensão mínima do banco dentro do limite do inversor.")
+
+if tensao_real_max > tensao_max_inv:
+    st.error("❌ Tensão máxima do banco EXCEDE a tensão máxima do inversor!")
+else:
+    st.success("✔ Tensão máxima do banco dentro do limite do inversor.")
 
 # ---------- Correntes ----------
 st.header("⚡ Validação de Corrente")
@@ -223,19 +245,12 @@ else:
 # ---------- Potência ----------
 st.header("🔌 Validação de Potência Máxima (teórica)")
 
-# ============================================================
-# 🔧 AJUSTE DA POTÊNCIA – CORRETO PARA HV
-# ============================================================
-
 if modelo == "Stack100":
     tensao_nominal = (bat["tensao_min_string"] + bat["tensao_max_string"]) / 2
 else:
     tensao_nominal = bat.get("tensao_modulo", 51.2)
 
 pot_max = (tensao_nominal * corr_desc_total) / 1000
-
-# ============================================================
-
 st.write(f"• Potência máxima teórica do banco: **{pot_max:.2f} kW**")
 
 if pot_inversor_kw > pot_max:
@@ -264,7 +279,7 @@ st.markdown(
 st.sidebar.header("ℹ️ Sobre a Calculadora")
 st.sidebar.markdown(
     """
-    **Dyness BESS Calculator – Versão 1.0**
+    **Dyness BESS Calculator – Versão 1.1**
 
     Desenvolvido para:
     - Engenharia  
