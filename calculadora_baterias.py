@@ -69,7 +69,11 @@ col1, col2, col3 = st.columns(3)
 with col1:
     carga_kw = st.number_input("Potência das Cargas (kW)", min_value=0.0, step=0.1, value=3.0)
     autonomia_h = st.number_input("Autonomia Desejada (h)", min_value=0.0, step=0.5, value=4.0)
-    motores_trifasicos_sel = st.radio("Possui motores trifásicos?", options=["Não", "Sim"], index=0)
+    motores_trifasicos_sel = st.radio(
+        "Possui motores trifásicos?",
+        options=["Não", "Sim"],
+        index=0
+    )
     motores_trifasicos = motores_trifasicos_sel == "Sim"
 
 with col2:
@@ -84,16 +88,41 @@ with col3:
 
 # ---------- Base de dados ----------
 baterias = {
-    "DL5.0C": {"tipo":"LV", "capacidade_nominal":5.12, "dod":0.90, "tensao_modulo":51.2,
-                "corrente_carga":75.0, "corrente_descarga":100.0, "max_paralelo":50,
-                "tensao_min":44.8, "tensao_max":57.6},
-    "Powerbox G2": {"tipo":"LV", "capacidade_nominal":10.24, "dod":0.95, "tensao_modulo":51.2,
-                    "corrente_carga":100.0, "corrente_descarga":200.0, "max_paralelo":50,
-                    "tensao_min":44.8, "tensao_max":57.6},
-    "Stack100": {"tipo":"HV", "capacidade_nominal":5.12, "dod":0.95, "tensao_modulo":51.2,
-                 "corrente_carga":100.0, "corrente_descarga":100.0,
-                 "tensao_min_string":134.0, "tensao_max_string":864.0,
-                 "max_modulos_por_torre":12, "max_modulos_por_bdu":15, "max_strings":12}
+    "DL5.0C": {
+        "tipo": "LV",
+        "capacidade_nominal": 5.12,
+        "dod": 0.90,
+        "tensao_modulo": 51.2,
+        "corrente_carga": 75.0,
+        "corrente_descarga": 100.0,
+        "max_paralelo": 50,
+        "tensao_min": 44.8,
+        "tensao_max": 57.6
+    },
+    "Powerbox G2": {
+        "tipo": "LV",
+        "capacidade_nominal": 10.24,
+        "dod": 0.95,
+        "tensao_modulo": 51.2,
+        "corrente_carga": 100.0,
+        "corrente_descarga": 200.0,
+        "max_paralelo": 50,
+        "tensao_min": 44.8,
+        "tensao_max": 57.6
+    },
+    "Stack100": {
+        "tipo": "HV",
+        "capacidade_nominal": 5.12,
+        "dod": 0.95,
+        "tensao_modulo": 51.2,
+        "corrente_carga": 100.0,
+        "corrente_descarga": 100.0,
+        "tensao_min_string": 134.0,
+        "tensao_max_string": 864.0,
+        "max_modulos_por_torre": 12,
+        "max_modulos_por_bdu": 15,
+        "max_strings": 12
+    }
 }
 
 # ---------- Seleção ----------
@@ -101,25 +130,38 @@ st.header("🔋 Seleção do Modelo Dyness")
 modelo = st.selectbox("Modelo", list(baterias.keys()))
 bat = baterias[modelo]
 
-# ---------- Cálculo energético ----------
+# ---------- Cálculo energético e número mínimo de módulos ----------
 energia_necessaria = carga_kw * autonomia_h
 if motores_trifasicos:
     energia_necessaria *= 1.2
 
-st.markdown(f"<div class='result-card'>🔹 <b>Energia total necessária:</b> {energia_necessaria:.2f} kWh</div>", unsafe_allow_html=True)
-
 cap_util_modulo = bat["capacidade_nominal"] * bat["dod"]
-modulos_totais = math.ceil(energia_necessaria / cap_util_modulo) if energia_necessaria > 0 else 0
 
-# Ajuste mínimo e máximo para inversor
+# Número mínimo de módulos pela energia
+modulos_energia = math.ceil(energia_necessaria / cap_util_modulo) if energia_necessaria > 0 else 0
+
 if modelo == "Stack100":
-    # Mínimo de módulos para atingir a tensão mínima do inversor
-    min_modulos_por_torre = math.ceil(tensao_min_inv / bat["tensao_min_string"])
-    max_modulos_por_torre = math.floor(tensao_max_inv / bat["tensao_max_string"])
-    modulos_totais = max(modulos_totais, min_modulos_por_torre)
-    modulos_totais = min(modulos_totais, max_modulos_por_torre if max_modulos_por_torre > 0 else modulos_totais)
+    # Número mínimo de módulos pela tensão mínima do inversor
+    modulos_tensao = math.ceil(tensao_min_inv / bat["tensao_modulo"])
+    # Número final de módulos é o maior entre energia e tensão mínima
+    modulos_totais = max(modulos_energia, modulos_tensao)
+else:
+    modulos_totais = modulos_energia
 
-st.markdown(f"<div class='result-card'>🔹 <b>Capacidade útil por módulo:</b> {cap_util_modulo:.2f} kWh<br>🔹 <b>Módulos necessários:</b> {modulos_totais} módulos</div>", unsafe_allow_html=True)
+st.markdown(
+    f"<div class='result-card'>🔹 <b>Energia total necessária:</b> {energia_necessaria:.2f} kWh</div>",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f"""
+    <div class="result-card">
+    🔹 <b>Capacidade útil por módulo:</b> {cap_util_modulo:.2f} kWh<br>
+    🔹 <b>Módulos necessários:</b> {modulos_totais} módulos
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ---------- Configuração ----------
 if modelo == "Stack100":
@@ -137,13 +179,14 @@ if modelo == "Stack100":
     else:
         st.success("✔ Strings dentro do limite.")
 
-    tensao_total_min = bat["tensao_min_string"] * torres
-    tensao_total_max = bat["tensao_max_string"] * torres
+    tensao_total_min = bat["tensao_modulo"] * modulos_totais
+    tensao_total_max = bat["tensao_max_string"]
 
-    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min} – {tensao_total_max} V**")
+    st.write(f"🔹 Faixa de tensão nomeada: **{tensao_total_min:.1f} – {tensao_total_max} V**")
 
 else:
     st.subheader("📦 Configuração LV — Paralelo")
+
     if modulos_totais > bat["max_paralelo"]:
         st.error(f"❌ Excede limite de {bat['max_paralelo']} módulos.")
     else:
@@ -156,6 +199,7 @@ else:
 
 # ---------- Correntes ----------
 st.header("⚡ Validação de Corrente")
+
 corr_carga_mod = bat["corrente_carga"]
 corr_desc_mod = bat["corrente_descarga"]
 
@@ -188,8 +232,9 @@ else:
 
 # ---------- Potência ----------
 st.header("🔌 Validação de Potência Máxima (teórica)")
+
 if modelo == "Stack100":
-    tensao_nominal = (bat["tensao_min_string"] + bat["tensao_max_string"]) / 2
+    tensao_nominal = (tensao_total_min + tensao_total_max) / 2
 else:
     tensao_nominal = bat.get("tensao_modulo", 51.2)
 
@@ -217,3 +262,49 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+# ---------- Sidebar ----------
+st.sidebar.header("ℹ️ Sobre a Calculadora")
+st.sidebar.markdown(
+    """
+    **Dyness BESS Calculator – Versão 1.0**
+
+    Desenvolvido para:
+    - Engenharia  
+    - Pré-vendas  
+    - Propostas  
+
+    Valida:
+    - Dimensionamento
+    - Corrente
+    - Tensão
+    - Potência
+
+    **Responsável Técnico:** Vinícius Goulart  
+    **Empresa:** Dyness Brasil  
+    """
+)
+
+st.sidebar.header("📄 Datasheets Dyness")
+PASTA_DATASHEETS = "datasheets"
+
+datasheets = {
+    "DL5.0C": "DL5.0C Datasheet-PT-BR(LATAM)-20250708.pdf",
+    "Powerbox G2": "Dyness Powerbox G2 datasheet-20250528-BR.pdf",
+    "SBDU100": "SBDU100 Datasheet-PT-20251010.pdf",
+    "Stack100": "STACK100 Datasheet-20250617-PT-BR.pdf",
+}
+
+for nome, arquivo in datasheets.items():
+    caminho = os.path.join(PASTA_DATASHEETS, arquivo)
+    st.sidebar.write(f"**{nome}**")
+    if os.path.exists(caminho):
+        with open(caminho, "rb") as f:
+            st.sidebar.download_button(
+                label=f"⬇️ Baixar {nome}",
+                data=f,
+                file_name=arquivo,
+                mime="application/pdf"
+            )
+    else:
+        st.sidebar.error(f"Arquivo não encontrado: {arquivo}")
